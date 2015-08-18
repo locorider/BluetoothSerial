@@ -71,7 +71,9 @@ public class BluetoothSerialService {
      * @param state  An integer defining the current connection state
      */
     private synchronized void setState(int state) {
-        if (D) Log.d(TAG, "setState() " + mState + " -> " + state);
+        if (D) {
+            Log.d(TAG, "setState() " + mState + " -> " + state);
+        }
         mState = state;
 
         // Give the new state to the Handler so the UI Activity can update
@@ -118,7 +120,9 @@ public class BluetoothSerialService {
      * @param secure Socket Security type - Secure (true) , Insecure (false)
      */
     public synchronized void connect(BluetoothDevice device, boolean secure) {
-        if (D) Log.d(TAG, "connect to: " + device);
+        if (D) {
+            Log.d(TAG, "connect to: " + device);
+        }
 
         // Cancel any thread attempting to make a connection
         if (mState == STATE_CONNECTING) {

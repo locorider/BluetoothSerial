@@ -50,6 +50,8 @@ public class BluetoothSerial extends CordovaPlugin {
     private static final String DISCOVER_UNPAIRED = "discoverUnpaired";
     private static final String SET_DEVICE_DISCOVERED_LISTENER = "setDeviceDiscoveredListener";
     private static final String CLEAR_DEVICE_DISCOVERED_LISTENER = "clearDeviceDiscoveredListener";
+	private static final String START_RANGING = "startRanging";
+    private static final String STOP_RANGING = "stopRanging";
 
     // callbacks
     private CallbackContext connectCallback;
@@ -58,8 +60,10 @@ public class BluetoothSerial extends CordovaPlugin {
     private CallbackContext enableBluetoothCallback;
     private CallbackContext deviceDiscoveredCallback;
 
-    private BluetoothAdapter bluetoothAdapter;
-    private BluetoothSerialService bluetoothSerialService;
+    private volatile BluetoothAdapter bluetoothAdapter;
+    private volatile BluetoothSerialService bluetoothSerialService;
+
+    private volatile boolean isRanging = false;
 
     // Debugging
     private static final String TAG = "BluetoothSerial";
@@ -81,6 +85,28 @@ public class BluetoothSerial extends CordovaPlugin {
     private String delimiter;
     private static final int REQUEST_ENABLE_BLUETOOTH = 1;
 
+    public void initialize(CordovaInterface cordova, CordovaWebView webView) {
+        super.initialize(cordova, webView);
+        this.sockMan = (ConnectivityManager) cordova.getActivity().getSystemService(Context.CONNECTIVITY_SERVICE);
+        this.connectionCallbackContext = null;
+
+        // We need to listen to connectivity events to update navigator.connection
+        IntentFilter intentFilter = new IntentFilter();
+        intentFilter.addAction(ConnectivityManager.CONNECTIVITY_ACTION);
+        if (this.receiver == null) {
+            this.receiver = new BroadcastReceiver() {
+                @Override
+                public void onReceive(Context context, Intent intent) {
+                    // (The null check is for the ARM Emulator, please use Intel Emulator for better results)
+                    if(NetworkManager.this.webView != null)
+                        updateConnectionInfo(sockMan.getActiveNetworkInfo());
+                }
+            };
+            webView.getContext().registerReceiver(this.receiver, intentFilter);
+        }
+
+    }
+
     @Override
     public boolean execute(String action, CordovaArgs args, CallbackContext callbackContext) throws JSONException {
 
@@ -97,47 +123,30 @@ public class BluetoothSerial extends CordovaPlugin {
         boolean validAction = true;
 
         if (action.equals(LIST)) {
-
             listBondedDevices(callbackContext);
-
         } else if (action.equals(CONNECT)) {
-
             boolean secure = true;
             connect(args, secure, callbackContext);
-
         } else if (action.equals(CONNECT_INSECURE)) {
-
             // see Android docs about Insecure RFCOMM http://goo.gl/1mFjZY
             boolean secure = false;
             connect(args, secure, callbackContext);
-
         } else if (action.equals(DISCONNECT)) {
-
             connectCallback = null;
             bluetoothSerialService.stop();
             callbackContext.success();
-
         } else if (action.equals(WRITE)) {
-
             byte[] data = args.getArrayBuffer(0);
             bluetoothSerialService.write(data);
             callbackContext.success();
-
         } else if (action.equals(AVAILABLE)) {
-
             callbackContext.success(available());
-
         } else if (action.equals(READ)) {
-
             callbackContext.success(read());
-
         } else if (action.equals(READ_UNTIL)) {
-
             String interesting = args.getString(0);
             callbackContext.success(readUntil(interesting));
-
         } else if (action.equals(SUBSCRIBE)) {
-
             delimiter = args.getString(0);
             dataAvailableCallback = callbackContext;
 
@@ -146,7 +155,6 @@ public class BluetoothSerial extends CordovaPlugin {
             callbackContext.sendPluginResult(result);
 
         } else if (action.equals(UNSUBSCRIBE)) {
-
             delimiter = null;
 
             // send no result, so Cordova won't hold onto the data available callback anymore
@@ -155,7 +163,6 @@ public class BluetoothSerial extends CordovaPlugin {
             dataAvailableCallback = null;
 
             callbackContext.success();
-
         } else if (action.equals(SUBSCRIBE_RAW)) {
 
             rawDataAvailableCallback = callbackContext;
@@ -165,13 +172,10 @@ public class BluetoothSerial extends CordovaPlugin {
             callbackContext.sendPluginResult(result);
 
         } else if (action.equals(UNSUBSCRIBE_RAW)) {
-
             rawDataAvailableCallback = null;
 
             callbackContext.success();
-
         } else if (action.equals(IS_ENABLED)) {
-
             if (bluetoothAdapter.isEnabled()) {
                 callbackContext.success();
             } else {
@@ -204,24 +208,23 @@ public class BluetoothSerial extends CordovaPlugin {
             cordova.startActivityForResult(this, intent, REQUEST_ENABLE_BLUETOOTH);
 
         } else if (action.equals(DISCOVER_UNPAIRED)) {
-
             discoverUnpairedDevices(callbackContext);
-
-        } else if (action.equals(SET_DEVICE_DISCOVERED_LISTENER)) {
-
+        } else if(action.equals(START_RANGING)) {
+			startRanging(callbackContext);
+		} else if (action.equals(SET_DEVICE_DISCOVERED_LISTENER)) {
             this.deviceDiscoveredCallback = callbackContext;
-
         } else if (action.equals(CLEAR_DEVICE_DISCOVERED_LISTENER)) {
-
             this.deviceDiscoveredCallback = null;
-
         } else {
             validAction = false;
-
         }
 
         return validAction;
     }
+	
+	private void startRanging(CallbackContext callbackCtx) {
+		
+	}
 
     @Override
     public void onActivityResult(int requestCode, int resultCode, Intent data) {
@@ -276,6 +279,8 @@ public class BluetoothSerial extends CordovaPlugin {
                     BluetoothDevice device = intent.getParcelableExtra(BluetoothDevice.EXTRA_DEVICE);
                     try {
                     	JSONObject o = deviceToJSON(device);
+                        int rssi = intent.getShortExtra(BluetoothDevice.EXTRA_RSSI, Short.MIN_VALUE);
+                        o.put("rssi", rssi);
                         unpairedDevices.put(o);
                         if (ddc != null) {
                             PluginResult res = new PluginResult(PluginResult.Status.OK, o);
@@ -304,6 +309,7 @@ public class BluetoothSerial extends CordovaPlugin {
         json.put("name", device.getName());
         json.put("address", device.getAddress());
         json.put("id", device.getAddress());
+        json.put("type", device.getType());
         if (device.getBluetoothClass() != null) {
             json.put("class", device.getBluetoothClass().getDeviceClass());
         }
