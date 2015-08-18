@@ -85,28 +85,6 @@ public class BluetoothSerial extends CordovaPlugin {
     private String delimiter;
     private static final int REQUEST_ENABLE_BLUETOOTH = 1;
 
-    public void initialize(CordovaInterface cordova, CordovaWebView webView) {
-        super.initialize(cordova, webView);
-        this.sockMan = (ConnectivityManager) cordova.getActivity().getSystemService(Context.CONNECTIVITY_SERVICE);
-        this.connectionCallbackContext = null;
-
-        // We need to listen to connectivity events to update navigator.connection
-        IntentFilter intentFilter = new IntentFilter();
-        intentFilter.addAction(ConnectivityManager.CONNECTIVITY_ACTION);
-        if (this.receiver == null) {
-            this.receiver = new BroadcastReceiver() {
-                @Override
-                public void onReceive(Context context, Intent intent) {
-                    // (The null check is for the ARM Emulator, please use Intel Emulator for better results)
-                    if(NetworkManager.this.webView != null)
-                        updateConnectionInfo(sockMan.getActiveNetworkInfo());
-                }
-            };
-            webView.getContext().registerReceiver(this.receiver, intentFilter);
-        }
-
-    }
-
     @Override
     public boolean execute(String action, CordovaArgs args, CallbackContext callbackContext) throws JSONException {
 
