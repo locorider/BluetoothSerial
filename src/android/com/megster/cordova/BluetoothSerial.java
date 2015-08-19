@@ -81,7 +81,7 @@ public class BluetoothSerial extends CordovaPlugin {
     public static final String DEVICE_NAME = "device_name";
     public static final String TOAST = "toast";
 
-    StringBuffer buffer = new StringBuffer();
+    private volatile StringBuilder buffer = new StringBuilder();
     private String delimiter;
     private static final int REQUEST_ENABLE_BLUETOOTH = 1;
 
@@ -320,7 +320,6 @@ public class BluetoothSerial extends CordovaPlugin {
              switch (msg.what) {
                  case MESSAGE_READ:
                     buffer.append((String)msg.obj);
-
                     if (dataAvailableCallback != null) {
                         sendDataToSubscriber();
                     }
@@ -333,7 +332,6 @@ public class BluetoothSerial extends CordovaPlugin {
                     }
                     break;
                  case MESSAGE_STATE_CHANGE:
-
                     if(D) Log.i(TAG, "MESSAGE_STATE_CHANGE: " + msg.arg1);
                     switch (msg.arg1) {
                         case BluetoothSerialService.STATE_CONNECTED:
@@ -360,7 +358,7 @@ public class BluetoothSerial extends CordovaPlugin {
                     Log.i(TAG, msg.getData().getString(DEVICE_NAME));
                     break;
                 case MESSAGE_TOAST:
-                    String message = msg.getData().getString(TOAST);
+                    final String message = msg.getData().getString(TOAST);
                     notifyConnectionLost(message);
                     break;
              }
@@ -406,7 +404,7 @@ public class BluetoothSerial extends CordovaPlugin {
     }
 
     private String read() {
-        int length = buffer.length();
+        final int length = buffer.length();
         String data = buffer.substring(0, length);
         buffer.delete(0, length);
         return data;
@@ -414,7 +412,7 @@ public class BluetoothSerial extends CordovaPlugin {
 
     private String readUntil(String c) {
         String data = "";
-        int index = buffer.indexOf(c, 0);
+        final int index = buffer.indexOf(c, 0);
         if (index > -1) {
             data = buffer.substring(0, index + c.length());
             buffer.delete(0, index + c.length());
